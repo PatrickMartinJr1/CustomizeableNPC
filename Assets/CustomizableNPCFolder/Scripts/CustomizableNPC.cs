@@ -14,7 +14,13 @@ public class CustomizableNPC : MonoBehaviour
     [SerializeField] private int _currentHealth;
 
     [Header("Movement")]
+    [SerializeField] private bool _roaming;
+    [SerializeField] private bool _stagnant;
     [SerializeField] private int _movementSpeed;
+    [SerializeField] private bool _pointBased;
+    [SerializeField] private bool _navMeshBased;
+    [SerializeField] private Transform[] _movementPoints;
+    private int _current = 0;
 
     [Header("FOV and Detection")]
     [SerializeField] public float _radius;
@@ -28,8 +34,10 @@ public class CustomizableNPC : MonoBehaviour
 
     [Header("Dialogue and SFX")]
     [SerializeField] private AudioClip[] _passingDialogueSFX;
+    [SerializeField] private int _timeBetweenPassingDialogues;
     [SerializeField] private AudioClip[] _tookDamageSFX;
     [SerializeField] private AudioClip[] _deathSFX;
+    private int _time;
 
     [Header("VFX")]
     [SerializeField] private ParticleSystem _tookDamageParticles;
@@ -37,12 +45,13 @@ public class CustomizableNPC : MonoBehaviour
 
     private void Start()
     {
+        _time = 0;
         _playerRef = GameObject.FindGameObjectWithTag("Player");
         StartCoroutine(FOVRoutine());
     }
     public enum State
     {
-        PeacefulRoaming, PeacefulStagnant, PeacefulWarning, HostileRoaming, HostileGuarding, HostileSearching, Attacking
+        Initialize, PeacefulRoaming, PeacefulStagnant, PeacefulWarning, HostileRoaming, HostileGuarding, HostileSearching, Attacking
     }
 
     private IEnumerator FOVRoutine()
@@ -55,19 +64,24 @@ public class CustomizableNPC : MonoBehaviour
         }
     }
 
-    public State CurrentState = State.PeacefulRoaming;
+    public State CurrentState = State.Initialize;
+
+
+
+    //STATES........
+
     private void Update()
     {
         switch (CurrentState)
         {
+            case State.Initialize:
+                DoInitialize();
+                break;
             case State.PeacefulRoaming:
                 DoPeacefulRoaming();
                 break;
             case State.PeacefulStagnant:
                 DoPeacefulStagnant();
-                break;
-            case State.PeacefulWarning:
-                DoPeacefulWarning();
                 break;
             case State.HostileRoaming:
                 DoHostileRoaming();
@@ -81,29 +95,99 @@ public class CustomizableNPC : MonoBehaviour
             case State.Attacking:
                 DoAttacking();
                 break;
+        }
 
+        if (_villager == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
+        {
+            SpeakGreeting();
+            _time = 0;
+        }
+        else
+        {
+            _time += 1; 
+        }
 
+        if (_guard == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
+        {
+            SpeakWarning();
+            _time = 0;
+        }
+        else
+        {
+            _time += 1;
+        }
+
+        if (_enemy == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
+        {
+            SpeakWarning();
+            _time = 0;
+        }
+        else
+        {
+            _time += 1;
+        }
+    }
+
+    private void DoInitialize()
+    {
+        if (_villager == true && _stagnant == true)
+        {
+            ChangeState(State.PeacefulStagnant);
+        }
+
+        if (_villager == true && _roaming == true)
+        {
+            ChangeState(State.PeacefulRoaming);
+        }
+
+        if (_guard == true && _stagnant == true)
+        {
+            ChangeState(State.HostileGuarding);
+        }
+
+        if (_guard == true && _roaming == true)
+        {
+            ChangeState(State.HostileRoaming);
+        }
+
+        if (_enemy == true && _stagnant == true)
+        {
+            ChangeState(State.HostileGuarding);
+        }
+
+        if (_enemy == true && _roaming == true)
+        {
+            ChangeState(State.HostileRoaming);
         }
     }
 
     private void DoPeacefulRoaming()
     {
-
+        Roam();
     }
 
     private void DoPeacefulStagnant()
     {
-
+        if (_pointBased == false && _navMeshBased == false)
+        {
+            Debug.Log("NPC is Stagnant");
+        }
     }
 
-    private void DoPeacefulWarning()
-    {
-
-    }
 
     private void DoHostileRoaming()
     {
+        if (_pointBased == true)         
+        {
+            MovePointBased();
+            Debug.Log("NPC is moving using pointBased");
+        }
 
+        if (_navMeshBased == true)
+        {
+            MoveNavMesh();
+            Debug.Log("NPC is moving using navMesh");
+        }
     }
 
     private void DoHostileGuarding()
@@ -121,9 +205,28 @@ public class CustomizableNPC : MonoBehaviour
 
     }
 
+    public void ChangeState(State newstate)
+    {
+        if (CurrentState == newstate)
+            return;
+        CurrentState = newstate;
+    }
+   
+
+    //FUNCTIONS........
     private void Roam()
     {
+        if (_pointBased == true)
+        {
+            MovePointBased();
+            Debug.Log("NPC is moving using pointBased");
+        }
 
+        if (_navMeshBased == true)
+        {
+            MoveNavMesh();
+            Debug.Log("NPC is moving using navMesh");
+        }
     }
 
     private void MoveNavMesh()
@@ -133,10 +236,21 @@ public class CustomizableNPC : MonoBehaviour
 
     private void MovePointBased()
     {
+        if (transform.position != _movementPoints[_current].position)
+        {
+            transform.position = Vector3.MoveTowards(transform.position, _movementPoints[_current].position, _movementSpeed * Time.deltaTime);
+            transform.LookAt(_movementPoints[_current].position);
+        }
+        else
+            _current = (_current + 1) % _movementPoints.Length;
+    }
+
+    private void SpeakGreeting()
+    {
 
     }
 
-    private void Speak()
+    private void SpeakWarning()
     {
 
     }
@@ -192,4 +306,5 @@ public class CustomizableNPC : MonoBehaviour
         else if (_canSeePlayer)
             _canSeePlayer = false;
     }
+
 }
