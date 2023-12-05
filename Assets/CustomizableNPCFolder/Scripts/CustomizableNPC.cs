@@ -5,34 +5,25 @@ using UnityEngine.AI;
 
 public class CustomizableNPC : MonoBehaviour
 {
-    [Header("NPC Type")]
-    [SerializeField] private bool _enemy;
-    [SerializeField] private bool _villager;
-    [SerializeField] private bool _guard;
-
-    [Header("Health")]
-    [SerializeField] private int _maxHealth;
-    [SerializeField] private int _currentHealth;
-
     [Header("Movement")]
-    [SerializeField] private bool _roaming;
-    [SerializeField] private bool _stagnant;
-    [SerializeField] private int _movementSpeed;
+    [SerializeField][Tooltip("Sets NPC to move around based on selected movement options")] private bool _roaming;
+    [SerializeField] [Tooltip("Sets NPC to stay in one place without moving")] private bool _stagnant;
     [SerializeField] private bool _pointBased;
-    [SerializeField] private Transform[] _movementPoints;
+    [SerializeField] [Tooltip("Speed of NPC while point based movement is being used")] private int _movementSpeed;
+    [SerializeField] [Tooltip("points that NPC will move between while point based movement is being used")] private Transform[] _movementPoints;
 
-    [SerializeField] private bool _navMeshBased;
+    [SerializeField] [Tooltip("Sets NPC to utilized the NavMesh Components that are assigned while active")] private bool _navMeshBased;
     [SerializeField] private NavMeshAgent _navAgent;
-    [SerializeField] private Transform _navCenterPoint;
-    [SerializeField] private float _navRange;
+    [SerializeField] [Tooltip("Central location from which NavMesh points will be shot out")] private Transform _navCenterPoint;
+    [SerializeField] [Tooltip("distance from the center point that navMesh points will be shot out")] private float _navRange;
 
     private int _current = 0;
 
     [Header("FOV and Detection")]                                 
     [SerializeField] public float _radius;
     [SerializeField] [Range(0, 360)] public float _angle;
-    [SerializeField] private LayerMask _targetMask;
-    [SerializeField] private LayerMask _obstructionMask;
+    [SerializeField] [Tooltip("layer mask that NPC will search for")] private LayerMask _targetMask;
+    [SerializeField] [Tooltip("layer mask that will obstuct the NPC field of view")] private LayerMask _obstructionMask;
     [SerializeField] public GameObject _playerRef;
     [SerializeField] private Transform _player;
     public bool _canSeePlayer;
@@ -40,27 +31,20 @@ public class CustomizableNPC : MonoBehaviour
 
     [Header("Dialogue and SFX")]
     [SerializeField] private AudioSource _audioSource;
-    [SerializeField] private AudioClip[] _greetings;
-    [SerializeField] private AudioClip[] _warnings;
-    [SerializeField] private int _timeBetweenPassingDialogues;
-    [SerializeField] private AudioClip[] _tookDamageSFX;
-    [SerializeField] private AudioClip[] _deathSFX;
-    private int _time;
+    [SerializeField] private AudioClip[] _dialogue;
+    [SerializeField] private int _timeBetweenDialogues;
 
-    [Header("VFX")]
-    [SerializeField] private ParticleSystem _tookDamageParticles;
-    [SerializeField] private ParticleSystem _deathPaticles;
+    private float _time;
+
 
     private void Start()
     {
         _time = 0;
         _playerRef = GameObject.FindGameObjectWithTag("Player");
         StartCoroutine(FOVRoutine());
+
     }
-    public enum State
-    {
-        Initialize, PeacefulRoaming, PeacefulStagnant, PeacefulWarning, HostileRoaming, HostileGuarding, HostileSearching, Attacking
-    }
+
 
     private IEnumerator FOVRoutine()
     {
@@ -72,146 +56,26 @@ public class CustomizableNPC : MonoBehaviour
         }
     }
 
-    public State CurrentState = State.Initialize;
 
 
-
-    //STATES........
-
-    private void Update()
+    private void FixedUpdate()
     {
-        switch (CurrentState)
+        if (_roaming == true)
         {
-            case State.Initialize:
-                DoInitialize();
-                break;
-            case State.PeacefulRoaming:
-                DoPeacefulRoaming();
-                break;
-            case State.PeacefulStagnant:
-                DoPeacefulStagnant();
-                break;
-            case State.HostileRoaming:
-                DoHostileRoaming();
-                break;
-            case State.HostileGuarding:
-                DoHostileGuarding();
-                break;
-            case State.HostileSearching:
-                DoHostileSearching();
-                break;
-            case State.Attacking:
-                DoAttacking();
-                break;
+            Roam();
         }
 
-        if (_villager == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
+        if (_canSeePlayer == true && _time >= _timeBetweenDialogues)
         {
-            PlaySFX(_greetings);
-            _time = 0;
+            LookAt();
+            PlaySFX(_dialogue);
+            _time = _time - _timeBetweenDialogues;
         }
         else
         {
-            _time += 1; 
-        }
-
-        if (_guard == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
-        {
-            PlaySFX(_warnings);
-            _time = 0;
-        }
-        else
-        {
-            _time += 1;
-        }
-
-        if (_enemy == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
-        {
-            PlaySFX(_warnings);
-            _time = 0;
-        }
-        else
-        {
-            _time += 1;
+            _time += Time.deltaTime;
         }
     }
-
-    private void DoInitialize()
-    {
-        if (_villager == true && _stagnant == true)
-        {
-            ChangeState(State.PeacefulStagnant);
-        }
-
-        if (_villager == true && _roaming == true)
-        {
-            ChangeState(State.PeacefulRoaming);
-        }
-
-        if (_guard == true && _stagnant == true)
-        {
-            ChangeState(State.HostileGuarding);
-        }
-
-        if (_guard == true && _roaming == true)
-        {
-            ChangeState(State.HostileRoaming);
-        }
-
-        if (_enemy == true && _stagnant == true)
-        {
-            ChangeState(State.HostileGuarding);
-        }
-
-        if (_enemy == true && _roaming == true)
-        {
-            ChangeState(State.HostileRoaming);
-        }
-    }
-
-    private void DoPeacefulRoaming()
-    {
-        Debug.Log("roaming");
-        Roam();
-    }
-
-    private void DoPeacefulStagnant()
-    {
-        if (_pointBased == false && _navMeshBased == false)
-        {
-            Debug.Log("NPC is Stagnant");
-        }
-    }
-
-
-    private void DoHostileRoaming()
-    {
-        Debug.Log("roaming");
-        Roam();
-    }
-
-    private void DoHostileGuarding()
-    {
-
-    }
-
-    private void DoHostileSearching()
-    {
-
-    }
-
-    private void DoAttacking()
-    {
-
-    }
-
-    public void ChangeState(State newstate)
-    {
-        if (CurrentState == newstate)
-            return;
-        CurrentState = newstate;
-    }
-   
 
     //FUNCTIONS........
     private void Roam()
@@ -265,29 +129,6 @@ public class CustomizableNPC : MonoBehaviour
             _current = (_current + 1) % _movementPoints.Length;
     }
 
-     private void SpeakGreeting()
-    {
-        int randomIndex = Random.Range(0, _greetings.Length);
-        _audioSource.PlayOneShot(_greetings[randomIndex]);
-        
-    }
-
-    private void SpeakWarning()
-    {
-        int randomIndex = Random.Range(0, _warnings.Length);
-        _audioSource.PlayOneShot(_warnings[randomIndex]);
-    }
-    private void PlayVFX(ParticleSystem _particleSystem)
-    {
-        if (_particleSystem != null)
-        {
-            // spawn a particle effect from assets
-            ParticleSystem newParticle = Instantiate(_particleSystem,
-                transform.position, Quaternion.identity);
-            newParticle.Play();
-        }
-    }
-
     private void PlaySFX(AudioClip[] _audioClip)
     {
         if (_audioClip != null)
@@ -299,17 +140,6 @@ public class CustomizableNPC : MonoBehaviour
         }
     }
 
-    private void Die()
-    {
-        PlaySFX(_deathSFX);
-        PlayVFX(_deathPaticles);
-        gameObject.SetActive(false);
-    }
-
-    private void Retreat()
-    {
-
-    }
 
     private void LookAt()
     {
