@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class CustomizableNPC : MonoBehaviour
 {
@@ -18,11 +19,16 @@ public class CustomizableNPC : MonoBehaviour
     [SerializeField] private bool _stagnant;
     [SerializeField] private int _movementSpeed;
     [SerializeField] private bool _pointBased;
-    [SerializeField] private bool _navMeshBased;
     [SerializeField] private Transform[] _movementPoints;
+
+    [SerializeField] private bool _navMeshBased;
+    [SerializeField] private NavMeshAgent _navAgent;
+    [SerializeField] private Transform _navCenterPoint;
+    [SerializeField] private float _navRange;
+
     private int _current = 0;
 
-    [Header("FOV and Detection")]
+    [Header("FOV and Detection")]                                 
     [SerializeField] public float _radius;
     [SerializeField] [Range(0, 360)] public float _angle;
     [SerializeField] private LayerMask _targetMask;
@@ -33,7 +39,9 @@ public class CustomizableNPC : MonoBehaviour
 
 
     [Header("Dialogue and SFX")]
-    [SerializeField] private AudioClip[] _passingDialogueSFX;
+    [SerializeField] private AudioSource _audioSource;
+    [SerializeField] private AudioClip[] _greetings;
+    [SerializeField] private AudioClip[] _warnings;
     [SerializeField] private int _timeBetweenPassingDialogues;
     [SerializeField] private AudioClip[] _tookDamageSFX;
     [SerializeField] private AudioClip[] _deathSFX;
@@ -99,7 +107,7 @@ public class CustomizableNPC : MonoBehaviour
 
         if (_villager == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
         {
-            SpeakGreeting();
+            PlaySFX(_greetings);
             _time = 0;
         }
         else
@@ -109,7 +117,7 @@ public class CustomizableNPC : MonoBehaviour
 
         if (_guard == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
         {
-            SpeakWarning();
+            PlaySFX(_warnings);
             _time = 0;
         }
         else
@@ -119,7 +127,7 @@ public class CustomizableNPC : MonoBehaviour
 
         if (_enemy == true && _canSeePlayer == true && _time >= _timeBetweenPassingDialogues)
         {
-            SpeakWarning();
+            PlaySFX(_warnings);
             _time = 0;
         }
         else
@@ -163,6 +171,7 @@ public class CustomizableNPC : MonoBehaviour
 
     private void DoPeacefulRoaming()
     {
+        Debug.Log("roaming");
         Roam();
     }
 
@@ -177,17 +186,8 @@ public class CustomizableNPC : MonoBehaviour
 
     private void DoHostileRoaming()
     {
-        if (_pointBased == true)         
-        {
-            MovePointBased();
-            Debug.Log("NPC is moving using pointBased");
-        }
-
-        if (_navMeshBased == true)
-        {
-            MoveNavMesh();
-            Debug.Log("NPC is moving using navMesh");
-        }
+        Debug.Log("roaming");
+        Roam();
     }
 
     private void DoHostileGuarding()
@@ -231,7 +231,27 @@ public class CustomizableNPC : MonoBehaviour
 
     private void MoveNavMesh()
     {
+        if(_navAgent.remainingDistance <= _navAgent.stoppingDistance)
+        {
+            Vector3 point;
+            if (RandomPoint(_navCenterPoint.position, _navRange, out point))
+            {
+                _navAgent.SetDestination(point);
+            }
+        }
+    }
+    bool RandomPoint(Vector3 center, float range, out Vector3 result)
+    {
+        Vector3 randomPoint = center + Random.insideUnitSphere * range;
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(randomPoint, out hit, 1.0f, NavMesh.AllAreas))
+        {
+            result = hit.position;
+            return true;
+        }
 
+        result = Vector3.zero;
+        return false;
     }
 
     private void MovePointBased()
@@ -245,29 +265,45 @@ public class CustomizableNPC : MonoBehaviour
             _current = (_current + 1) % _movementPoints.Length;
     }
 
-    private void SpeakGreeting()
+     private void SpeakGreeting()
     {
-
+        int randomIndex = Random.Range(0, _greetings.Length);
+        _audioSource.PlayOneShot(_greetings[randomIndex]);
+        
     }
 
     private void SpeakWarning()
     {
-
+        int randomIndex = Random.Range(0, _warnings.Length);
+        _audioSource.PlayOneShot(_warnings[randomIndex]);
     }
-
     private void PlayVFX(ParticleSystem _particleSystem)
     {
-
+        if (_particleSystem != null)
+        {
+            // spawn a particle effect from assets
+            ParticleSystem newParticle = Instantiate(_particleSystem,
+                transform.position, Quaternion.identity);
+            newParticle.Play();
+        }
     }
 
-    private void PlaySFX(AudioClip _audioClip)
+    private void PlaySFX(AudioClip[] _audioClip)
     {
+        if (_audioClip != null)
+        {
+            Debug.Log("playing audio");
+            int randomIndex = Random.Range(0, _audioClip.Length);
+            _audioSource.PlayOneShot(_audioClip[randomIndex]);
 
+        }
     }
 
     private void Die()
     {
-
+        PlaySFX(_deathSFX);
+        PlayVFX(_deathPaticles);
+        gameObject.SetActive(false);
     }
 
     private void Retreat()
